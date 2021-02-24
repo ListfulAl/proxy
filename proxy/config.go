@@ -36,7 +36,7 @@ func (c Config) getEnv(key string, defaultValue string) string {
 
 // NewConfig creates the struct Config by parsing environment
 // vars or setting them to default values, if applicable
-func NewConfig() Config {
+func NewConfig(dir *string) Config {
 	c := Config{}
 	c.RedisUrl = c.getEnv("REDIS_URL", "localhost:6379")
 	log.Print("Importing Env Variables...")
@@ -102,21 +102,17 @@ func NewConfig() Config {
 			c.AuthTTL = &rt
 		}
 	}
-	// read from text file users you want to allow to use the proxy
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-		fmt.Println(err)
-		os.Exit(1)
+
+	if dir != nil {
+		fileBytes, err := ioutil.ReadFile(fmt.Sprintf("%s/permit.txt", *dir))
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		c.PermittedUsers = strings.Split(string(fileBytes), "\n")
+		fmt.Println("Your permitted users")
+		fmt.Println(c.PermittedUsers)
 	}
-	fileBytes, err := ioutil.ReadFile(fmt.Sprintf("%s/permit.txt", dir))
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	c.PermittedUsers = strings.Split(string(fileBytes), "\n")
-	fmt.Println("Your permitted users")
-	fmt.Println(c.PermittedUsers)
 
 	v := c.getEnv("DISABLE_AUTH", "true")
 	bv, err := strconv.ParseBool(v)
