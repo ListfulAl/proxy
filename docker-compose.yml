@@ -15,8 +15,10 @@ services:
       - CACHE_KEY_CAPACITY=100
       - CACHE_TTL=300
       - PROXY_CLIENT_LIMIT=1000
+      - AUTH_TTL=3000
+      - AUTH_CODE=secret
     ports:
-      - '8080:8080'
+      - "8080:8080"
     links:
       - redis
     depends_on:
@@ -29,4 +31,4 @@ services:
     expose:
       - 6379
     ports:
-      - '6379:6379'
+      - "6379:6379"

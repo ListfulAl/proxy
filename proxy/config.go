@@ -2,9 +2,11 @@ package proxy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,6 +19,11 @@ type Config struct {
 	CacheTTL         *time.Duration
 	ProxyClientLimit *int
 	Mode             string
+	AuthCode         string
+	AuthTTL          *time.Duration
+	DisableAuth      bool
+	PermittedUsers   []string
+	UserNameSpace    string
 }
 
 func (c Config) getEnv(key string, defaultValue string) string {
@@ -28,7 +35,7 @@ func (c Config) getEnv(key string, defaultValue string) string {
 }
 
 // NewConfig creates the struct Config by parsing environment
-// vars or setting them to defaul values, if applicable
+// vars or setting them to default values, if applicable
 func NewConfig() Config {
 	c := Config{}
 	c.RedisUrl = c.getEnv("REDIS_URL", "localhost:6379")
@@ -82,6 +89,31 @@ func NewConfig() Config {
 	// 1 or "" - http
 	// 2 is RESP
 	c.Mode = c.getEnv("APP_MODE", "")
+
+	// a code you must pass in order to create new name spaces
+	// you should provide auth_code to your client
+	c.AuthCode = c.getEnv("AUTH_CODE", "secret")
+	attl := c.getEnv("AUTH_TTL", "3000")
+	if attl != "" {
+		rt, err := time.ParseDuration(attl + "s")
+		if err != nil {
+			log.Fatal(err)
+		} else {
+			c.AuthTTL = &rt
+		}
+	}
+	// read from text file users you want to allow to use the proxy
+	fileBytes, err := ioutil.ReadFile("../permit.txt")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	c.PermittedUsers = strings.Split(string(fileBytes), "\n")
+
+	c.DisableAuth = c.getEnv("DISABLE_AUTH", true)
+
+	// where you want to nest your user data
+	c.UserNameSpace = c.getEnv("USER_NAMESPACE", "userData")
 
 	return c
 }
