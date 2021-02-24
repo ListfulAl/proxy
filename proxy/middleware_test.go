@@ -21,7 +21,7 @@ func TestSequentialProcessing(t *testing.T) {
 	// redis backing cache I do not use mocks
 	assert := assert.New(t)
 
-	config := NewConfig()
+	config := NewConfig(nil)
 	proxy := NewProxyCache(config)
 
 	var ctx = context.Background()
@@ -94,7 +94,7 @@ func TestNonSequentialProcessing(t *testing.T) {
 	// do the same thing but set the value to something else like 10?
 	assert := assert.New(t)
 
-	config := NewConfig()
+	config := NewConfig(nil)
 	proxy := NewProxyCache(config)
 
 	var ctx = context.Background()

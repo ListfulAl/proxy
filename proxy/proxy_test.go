@@ -26,7 +26,7 @@ func TestProxyCachedGet(t *testing.T) {
 	// some constants to start with
 	duration, _ := time.ParseDuration("10s")
 
-	config := NewConfig()
+	config := NewConfig(nil)
 	config.CacheTTL = &duration
 
 	proxy := NewProxyCache(config)
@@ -106,7 +106,7 @@ func TestGlobalExpiry(t *testing.T) {
 	// some constants to start with 1 sec ttl
 	duration, _ := time.ParseDuration("1s")
 
-	config := NewConfig()
+	config := NewConfig(nil)
 	config.CacheTTL = &duration
 
 	// set up a few instances
@@ -185,7 +185,7 @@ func TestLRUEvictionFixedKeySize(t *testing.T) {
 	// some constants to start with
 	duration, _ := time.ParseDuration("1s")
 
-	config := NewConfig()
+	config := NewConfig(nil)
 	config.CacheTTL = &duration
 	only2 := 2
 	config.CacheKeyCapacity = &only2

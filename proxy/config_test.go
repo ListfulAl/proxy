@@ -21,7 +21,7 @@ func TestConfiguration(t *testing.T) {
 
 	e1, _ := time.ParseDuration("3s")
 	e2, _ := time.ParseDuration("5s")
-	config := NewConfig()
+	config := NewConfig(nil)
 	assert.Equal("1", config.RedisUrl)
 	assert.Equal(e1, *config.RedisTTL)
 	assert.Equal(":3", config.Port)

@@ -1,0 +1,84 @@
+package proxy
+
+import (
+	b64 "encoding/base64"
+	"fmt"
+	"strings"
+
+	uuid "github.com/google/uuid"
+)
+
+// Auth checks if a new name space should be provided given a code
+type AuthClient struct {
+	newUserCode string
+	store       Cache
+	namespace   string
+	isDisabled  bool
+}
+
+func NewAuthClient(config Config) AuthClient {
+
+	a := AuthClient{newUserCode: config.AuthCode, isDisabled: config.DisableAuth}
+	a.store = NewRedisClient(config.AuthTTL, config.RedisUrl)
+	a.namespace = "auth"
+	return a
+}
+
+func (a *AuthClient) CreateNewUser(code string, inviteCode string) (*string, error) {
+	if code == a.newUserCode {
+		// check to see if invite code exists
+		id, err := a.store.Get(code)
+		if err != nil {
+			return nil, err
+		}
+		if id != nil {
+			// this means this person has already created this code
+			// return error
+			return nil, fmt.Errorf("User from invite code %s already exists", code)
+		}
+
+		// create a uuid for this new user and stash it
+		nuuid, err := uuid.Parse(inviteCode)
+		suuid := nuuid.String()
+		if err != nil {
+			return nil, err
+		}
+		a.store.Put(a.GenKey(inviteCode), suuid)
+		return &suuid, nil
+	}
+	return nil, fmt.Errorf("Invalid Code from your client: %s", code)
+}
+
+// Authenticate checks the base64 string against stored credentials to give a person access
+// data should follow Basic convention: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization
+// where the string is encoded in base64 and the decoded content has inviteCode:accessKey
+// If the access key is invalid it will return False and nil
+// If it is valid it will return the inviteCode
+func (a *AuthClient) Authenticate(input string) (bool, *string) {
+	// split from word basic
+	c := strings.Fields(input)
+	base64 := c[len(c)-1]
+	//decode
+	ua, err := b64.StdEncoding.DecodeString(base64)
+	if err != nil {
+		return false, nil
+	}
+	sua := string(ua)
+	// split by colon
+	s := strings.Split(sua, ":")
+	inviteCode := s[0]
+	accessKey := s[1]
+
+	ak, err := a.store.Get(a.GenKey(inviteCode))
+	if err != nil {
+		return false, nil
+	}
+	if ak == nil {
+		return false, nil
+	}
+	return *ak == accessKey, &inviteCode
+}
+
+func (a *AuthClient) GenKey(key string) string {
+	return fmt.Sprintf("%s.%s", a.namespace, key)
+}

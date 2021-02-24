@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -11,8 +12,14 @@ import (
 )
 
 func main() {
-
-	configs := proxy.NewConfig()
+	// read from text file users you want to allow to use the proxy
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	configs := proxy.NewConfig(&dir)
 	// create a new instance of the proxy cache
 	pc := proxy.NewProxyCache(configs)
 

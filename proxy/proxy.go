@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,6 +37,11 @@ type ProxyCache struct {
 
 	// Cache is a cache used by the proxy that is not in-memory storage
 	cache Cache
+
+	// auth is a auth client we use to verify if we should be accepting these values to store
+	auth AuthClient
+
+	userNameSpace string
 }
 
 // Put ...
@@ -125,8 +131,28 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"error": "bad key"}`)
 		return
 	}
+	if strings.Contains(key, ".") {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, `{"error": "invalid key"}`)
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
+
+		if c.auth.isDisabled == false {
+			// if invite and access code are included in the call, store
+			// this in the user cache namespace
+			ak := r.Header.Get("Authorization")
+			result, inviteCode := c.auth.Authenticate(ak)
+			if result == false {
+				w.WriteHeader(http.StatusUnauthorized)
+				io.WriteString(w, `{"error": "permission DENIED GET THE FUDGE OUTTA HERE"}`)
+				return
+			}
+			// create key that has namespace values
+			key = c.GenKey(*inviteCode, key)
+		}
 
 		value, err := c.HandleGet(key)
 
@@ -157,6 +183,20 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if c.auth.isDisabled == false {
+			// if invite and access code are included in the call, store
+			// this in the user cache namespace
+			ak := r.Header.Get("Authorization")
+			result, inviteCode := c.auth.Authenticate(ak)
+			if result == false {
+				w.WriteHeader(http.StatusUnauthorized)
+				io.WriteString(w, `{"error": "permission DENIED GET THE FUDGE OUTTA HERE"}`)
+				return
+			}
+			// create key that has namespace values
+			key = c.GenKey(*inviteCode, key)
+		}
+
 		err = c.HandlePut(key, string(value))
 
 		if err != nil {
@@ -168,10 +208,44 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, fmt.Sprintf(`{"%v": "%v}`, key, string(value)))
+
+	case http.MethodPost:
+		switch key {
+		case "authUser":
+			err := r.ParseForm()
+			if err != nil {
+				// in case of any error
+				return
+			}
+			// check to see if this client should be allowed to make requests in the first place
+			code := r.Form.Get("code")
+			inviteCode := r.Form.Get("inviteCode")
+			tempKey, err := c.auth.CreateNewUser(code, inviteCode)
+			if err != nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				io.WriteString(w, `{"error": "not allowed to make new user"}`)
+			}
+			if tempKey == nil {
+				w.WriteHeader(http.StatusUnauthorized)
+				io.WriteString(w, `{"error": "not allowed to make new user"}`)
+			}
+			w.WriteHeader(http.StatusOK)
+			body := fmt.Sprintf(`{"key":"%s", "inviteCode":"%s"}`, *tempKey, inviteCode)
+			io.WriteString(w, body)
+
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			io.WriteString(w, `{"error": "method not allowed"}`)
+		}
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		io.WriteString(w, `{"error": "method not allowed"}`)
 	}
+	return
+}
+
+func (c *ProxyCache) GenKey(inviteCode string, key string) string {
+	return fmt.Sprintf("%s.%s.%s", c.userNameSpace, inviteCode, key)
 }
 
 // HandleGet gets key values from local or external cache
@@ -230,6 +304,12 @@ func NewProxyCache(config Config) *ProxyCache {
 	}
 	// set up external cache
 	pc.cache = NewRedisClient(config.RedisTTL, config.RedisUrl)
+
+	// set up auth
+	pc.auth = NewAuthClient(config)
+
+	// set up namespace to store user values
+	pc.userNameSpace = config.UserNameSpace
 
 	return &pc
 }
