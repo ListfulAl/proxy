@@ -16,10 +16,10 @@ type AuthClient struct {
 	isDisabled  bool
 }
 
-func NewAuth(config Config) AuthClient {
+func NewAuthClient(config Config) AuthClient {
 
-	a := AuthClient{newUserCode: config.Code, isDisabled: config.DisableAuth}
-	a.store = NewRedisClient(config.keyTimeout, config.redisUrl)
+	a := AuthClient{newUserCode: config.AuthCode, isDisabled: config.DisableAuth}
+	a.store = NewRedisClient(config.AuthTTL, config.RedisUrl)
 	a.namespace = "auth"
 	return a
 }
@@ -38,9 +38,13 @@ func (a *AuthClient) CreateNewUser(code string, inviteCode string) (*string, err
 		}
 
 		// create a uuid for this new user and stash it
-		nuuid := uuid.Parse(inviteCode)
-		a.store.Put(a.GenKey(inviteCode), nuuid)
-		return nuuid, nil
+		nuuid, err := uuid.Parse(inviteCode)
+		suuid := nuuid.String()
+		if err != nil {
+			return nil, err
+		}
+		a.store.Put(a.GenKey(inviteCode), suuid)
+		return &suuid, nil
 	}
 	return nil, fmt.Errorf("Invalid Code from your client: %s", code)
 }
@@ -55,13 +59,13 @@ func (a *AuthClient) Authenticate(input string) (bool, *string) {
 	c := strings.Fields(input)
 	base64 := c[len(c)-1]
 	//decode
-	ua, err := b64.URLEncoding.DecodeString(base64)
+	ua, err := b64.StdEncoding.DecodeString(base64)
 	if err != nil {
 		return false, nil
 	}
-
+	sua := string(ua)
 	// split by colon
-	s := strings.Split(ua, ":")
+	s := strings.Split(sua, ":")
 	inviteCode := s[0]
 	accessKey := s[1]
 

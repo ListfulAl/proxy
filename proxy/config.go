@@ -103,14 +103,29 @@ func NewConfig() Config {
 		}
 	}
 	// read from text file users you want to allow to use the proxy
-	fileBytes, err := ioutil.ReadFile("../permit.txt")
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fileBytes, err := ioutil.ReadFile(fmt.Sprintf("%s/permit.txt", dir))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	c.PermittedUsers = strings.Split(string(fileBytes), "\n")
+	fmt.Println("Your permitted users")
+	fmt.Println(c.PermittedUsers)
 
-	c.DisableAuth = c.getEnv("DISABLE_AUTH", true)
+	v := c.getEnv("DISABLE_AUTH", "true")
+	bv, err := strconv.ParseBool(v)
+	if err != nil {
+		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	c.DisableAuth = bv
 
 	// where you want to nest your user data
 	c.UserNameSpace = c.getEnv("USER_NAMESPACE", "userData")

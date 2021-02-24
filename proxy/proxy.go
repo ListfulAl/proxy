@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
@@ -139,18 +140,18 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 
-		a.auth.isDisabled == false {
+		if c.auth.isDisabled == false {
 			// if invite and access code are included in the call, store
 			// this in the user cache namespace
 			ak := r.Header.Get("Authorization")
-			result, inviteCode := a.Authenticate(ak)
+			result, inviteCode := c.auth.Authenticate(ak)
 			if result == false {
 				w.WriteHeader(http.StatusUnauthorized)
 				io.WriteString(w, `{"error": "permission DENIED GET THE FUDGE OUTTA HERE"}`)
 				return
 			}
 			// create key that has namespace values
-			key = c.GenKey(inviteCode, key)
+			key = c.GenKey(*inviteCode, key)
 		}
 
 		value, err := c.HandleGet(key)
@@ -182,18 +183,18 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		a.auth.isDisabled == false {
+		if c.auth.isDisabled == false {
 			// if invite and access code are included in the call, store
 			// this in the user cache namespace
 			ak := r.Header.Get("Authorization")
-			result, inviteCode := a.Authenticate(ak)
+			result, inviteCode := c.auth.Authenticate(ak)
 			if result == false {
 				w.WriteHeader(http.StatusUnauthorized)
 				io.WriteString(w, `{"error": "permission DENIED GET THE FUDGE OUTTA HERE"}`)
 				return
 			}
 			// create key that has namespace values
-			key = c.GenKey(inviteCode, key)
+			key = c.GenKey(*inviteCode, key)
 		}
 
 		err = c.HandlePut(key, string(value))
@@ -217,8 +218,8 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// check to see if this client should be allowed to make requests in the first place
-			var code := r.Form.Get("code")
-			var inviteCode := r.Form.Get("inviteCode")
+			code := r.Form.Get("code")
+			inviteCode := r.Form.Get("inviteCode")
 			tempKey, err := c.auth.CreateNewUser(code, inviteCode)
 			if err != nil {
 				w.WriteHeader(http.StatusUnauthorized)
@@ -230,7 +231,7 @@ func (c *ProxyCache) PayloadHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			w.WriteHeader(http.StatusOK)
 			body := fmt.Sprintf(`{"key":"%s", "inviteCode":"%s"}`, *tempKey, inviteCode)
-			io.WriteString(w, `{"error": "not allowed to make new user"}`)
+			io.WriteString(w, body)
 
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
